@@ -1,115 +1,51 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import openai
 
-# ===== 한글 자모 및 기호 매핑 =====
+# 🔁 너가 만든 한글 ↔ 기호 변환 함수 가져오기
+from hangul_converter import hangul_to_symbols, symbols_to_hangul
 
-CHOSUNG_LIST = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ",
-                "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"]
-JUNGSUNG_LIST = ["ㅏ", "ㅐ", "ㅑ", "ㅒ", "ㅓ", "ㅔ", "ㅕ", "ㅖ", "ㅗ", "ㅘ",
-                 "ㅙ", "ㅚ", "ㅛ", "ㅜ", "ㅝ", "ㅞ", "ㅟ", "ㅠ", "ㅡ", "ㅢ", "ㅣ"]
-JONGSUNG_LIST = ["", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ", "ㄺ", "ㄻ",
-                 "ㄼ", "ㄽ", "ㄾ", "ㄿ", "ㅀ", "ㅁ", "ㅂ", "ㅄ", "ㅅ", "ㅆ",
-                 "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"]
+st.set_page_config(page_title="고대 문자 챗봇", layout="centered")
+st.title("🤖 ᚠ𐔀 고대 문자 GPT 챗봇")
 
-initial_map = {
-    'ㄱ': '𐎀', 'ㄴ': '𐎐', 'ㄷ': '𐎂', 'ㄹ': '𐎑', 'ㅁ': '𐎄',
-    'ㅂ': '𐎅', 'ㅅ': '𐎃', 'ㅇ': '𐎊', 'ㅈ': '𐎆', 'ㅊ': '𐎇',
-    'ㅋ': '𐎚', 'ㅌ': '𐎛', 'ㅍ': '𐎜', 'ㅎ': '𐎟'
-}
-final_map = {
-    'ㄱ': '𐎰', 'ㄴ': '𐎱', 'ㄷ': '𐎲', 'ㄹ': '𐎳', 'ㅁ': '𐎴',
-    'ㅂ': '𐎵', 'ㅅ': '𐎶', 'ㅇ': '𐎷', 'ㅈ': '𐎸', 'ㅊ': '𐎹',
-    'ㅋ': '𐎺', 'ㅌ': '𐎻', 'ㅍ': '𐎼', 'ㅎ': '𐎽'
-}
-vowel_map = {
-    'ㅏ': '𐎠', 'ㅑ': '𐎢', 'ㅓ': '𐎤', 'ㅕ': '𐎦', 'ㅗ': '𐎨',
-    'ㅛ': '𐎩', 'ㅜ': '𐎪', 'ㅠ': '𐎫', 'ㅡ': '𐎬', 'ㅣ': '𐎭',
-    'ㅐ': '𐎡', 'ㅒ': '𐎣', 'ㅔ': '𐎥', 'ㅖ': '𐎧'
-}
-rev_initial = {v: k for k, v in initial_map.items()}
-rev_final = {v: k for k, v in final_map.items()}
-rev_vowel = {v: k for k, v in vowel_map.items()}
+# 🔐 GPT API 키 입력 (Streamlit secrets 또는 수동 입력)
+openai_api_key = st.secrets.get("OPENAI_API_KEY", "")
+if not openai_api_key:
+    openai_api_key = st.text_input("🔑 OpenAI API 키를 입력하세요", type="password")
 
-# 자모 → 완성형 한글
-def combine_jamos(cho, jung, jong):
-    cho_i = CHOSUNG_LIST.index(cho)
-    jung_i = JUNGSUNG_LIST.index(jung)
-    jong_i = JONGSUNG_LIST.index(jong) if jong else 0
-    return chr(0xAC00 + (cho_i * 21 * 28) + (jung_i * 28) + jong_i)
+# 💬 채팅 기록 세션 초기화
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
-# 기호 → 한글 해석
-def decode_symbols(symbol_text):
-    jamos = []
-    for ch in symbol_text:
-        if ch in rev_initial:
-            jamos.append(("초", rev_initial[ch]))
-        elif ch in rev_vowel:
-            jamos.append(("중", rev_vowel[ch]))
-        elif ch in rev_final:
-            jamos.append(("종", rev_final[ch]))
-        else:
-            jamos.append(("기타", ch))
+# 👤 사용자 입력 (기호 언어)
+user_input_symbol = st.text_area("🗣️ 기호 언어 입력", height=100)
 
-    result = ""
-    i = 0
-    while i < len(jamos):
-        if i + 1 < len(jamos) and jamos[i][0] == "초" and jamos[i+1][0] == "중":
-            cho = jamos[i][1]
-            jung = jamos[i+1][1]
-            jong = ""
-            if i + 2 < len(jamos) and jamos[i+2][0] == "종":
-                jong = jamos[i+2][1]
-                i += 3
-            else:
-                i += 2
-            result += combine_jamos(cho, jung, jong)
-        else:
-            result += jamos[i][1]
-            i += 1
-    return result
+def generate_gpt_reply(prompt_text):
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        api_key=openai_api_key,
+        messages=[
+            {"role": "system", "content": "친절하고 쉽게 설명해 주세요."},
+            {"role": "user", "content": prompt_text}
+        ]
+    )
+    return response.choices[0].message["content"]
 
-# 한글 → 기호 변환
-def encode_hangul(text):
-    result = ""
-    for ch in text:
-        code = ord(ch)
-        if 0xAC00 <= code <= 0xD7A3:
-            base = code - 0xAC00
-            cho = CHOSUNG_LIST[base // 588]
-            jung = JUNGSUNG_LIST[(base % 588) // 28]
-            jong = JONGSUNG_LIST[base % 28]
-            result += initial_map.get(cho, cho)
-            result += vowel_map.get(jung, jung)
-            if jong:
-                result += final_map.get(jong, jong)
-        else:
-            result += ch
-    return result
+# ▶️ 버튼 클릭 시 GPT 호출 및 변환
+if st.button("💬 기호로 대화하기") and user_input_symbol and openai_api_key:
+    # 1️⃣ 기호 → 한글
+    user_input_korean = symbols_to_hangul(user_input_symbol)
 
-# ========== Streamlit 챗봇 UI ==========
+    # 2️⃣ GPT 호출 (한글)
+    gpt_reply_korean = generate_gpt_reply(user_input_korean)
 
-st.title("💬 기호 언어 챗봇")
+    # 3️⃣ GPT 응답 → 기호 변환
+    gpt_reply_symbol = hangul_to_symbols(gpt_reply_korean)
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+    # 💾 채팅 기록 저장
+    st.session_state.chat_history.append(("👤", user_input_symbol))
+    st.session_state.chat_history.append(("🤖", gpt_reply_symbol))
 
-user_input = st.text_input("기호로 메시지를 입력해보세요:")
-
-if st.button("보내기"):
-    if user_input.strip():
-        decoded = decode_symbols(user_input)
-        st.session_state.messages.append(("🧑", user_input, decoded))
-
-        # GPT 대신 간단한 로컬 응답
-        if "날씨" in decoded:
-            reply = "오늘 날씨는 맑고 따뜻해요!"
-        else:
-            reply = f"'{decoded}'라는 말, 정말 멋지네요!"
-
-        encoded = encode_hangul(reply)
-        st.session_state.messages.append(("🤖", encoded, reply))
-
-# 대화 출력
-for speaker, symbol_msg, decoded_msg in st.session_state.messages:
-    st.markdown(f"**{speaker}**: {symbol_msg}")
-    st.caption(f"({decoded_msg})")
+# 🪶 채팅 출력
+st.markdown("## 💬 대화 기록")
+for speaker, msg in st.session_state.chat_history:
+    st.markdown(f"**{speaker}**: {msg}")
