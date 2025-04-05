@@ -1,51 +1,79 @@
 import streamlit as st
 import openai
+from jamo import h2j, j2hcj
+import unicodedata
 
-# 🔁 너가 만든 한글 ↔ 기호 변환 함수 가져오기
-from hangul_converter import hangul_to_symbols, symbols_to_hangul
+# GPT API 키 설정
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-st.set_page_config(page_title="고대 문자 챗봇", layout="centered")
-st.title("🤖 ᚠ𐔀 고대 문자 GPT 챗봇")
+# 기호 언어 변환 설정
+decompose_chosung = {'ㄱ': 'ᚠ', 'ㄲ': 'ᚡ', 'ㄴ': 'ᚢ', 'ㄷ': 'ᚣ', 'ㄸ': 'ᚤ',
+                     'ㄹ': 'ᚥ', 'ㅁ': 'ᚦ', 'ㅂ': 'ᚧ', 'ㅃ': 'ᚨ', 'ㅅ': 'ᚩ',
+                     'ㅆ': 'ᚪ', 'ㅇ': 'ᚫ', 'ㅈ': 'ᚬ', 'ㅉ': 'ᚭ', 'ㅊ': 'ᚮ',
+                     'ㅋ': 'ᚯ', 'ㅌ': 'ᚰ', 'ㅍ': 'ᚱ', 'ㅎ': 'ᚲ'}
 
-# 🔐 GPT API 키 입력 (Streamlit secrets 또는 수동 입력)
-openai_api_key = st.secrets.get("OPENAI_API_KEY", "")
-if not openai_api_key:
-    openai_api_key = st.text_input("🔑 OpenAI API 키를 입력하세요", type="password")
+decompose_jungsung = {'ㅏ': '𐔀', 'ㅐ': '𐔁', 'ㅑ': '𐔂', 'ㅒ': '𐔃', 'ㅓ': '𐔄',
+                      'ㅔ': '𐔅', 'ㅕ': '𐔆', 'ㅖ': '𐔇', 'ㅗ': '𐔈', 'ㅘ': '𐔉',
+                      'ㅙ': '𐔊', 'ㅚ': '𐔋', 'ㅛ': '𐔌', 'ㅜ': '𐔍', 'ㅝ': '𐔎',
+                      'ㅞ': '𐔏', 'ㅟ': '𐔐', 'ㅠ': '𐔑', 'ㅡ': '𐔒', 'ㅢ': '𐔓', 'ㅣ': '𐔔'}
 
-# 💬 채팅 기록 세션 초기화
+decompose_jongsung = {'': '', 'ㄱ': 'ᚳ', 'ㄲ': 'ᚴ', 'ㄳ': 'ᚵ', 'ㄴ': 'ᚶ',
+                      'ㄵ': 'ᚷ', 'ㄶ': 'ᚸ', 'ㄷ': 'ᚹ', 'ㄹ': 'ᚺ', 'ㄺ': 'ᚻ',
+                      'ㄻ': 'ᚼ', 'ㄼ': 'ᚽ', 'ㄽ': 'ᚾ', 'ㄾ': 'ᚿ', 'ㄿ': 'ᛀ',
+                      'ㅀ': 'ᛁ', 'ㅁ': 'ᛂ', 'ㅂ': 'ᛃ', 'ㅄ': 'ᛄ', 'ㅅ': 'ᛅ',
+                      'ㅆ': 'ᛆ', 'ㅇ': 'ᛇ', 'ㅈ': 'ᛈ', 'ㅊ': 'ᛉ', 'ㅋ': 'ᛊ',
+                      'ㅌ': 'ᛋ', 'ㅍ': 'ᛌ', 'ㅎ': 'ᛍ'}
+
+SPACE_SYMBOL = '𐤟'
+
+def is_hangul_char(char):
+    return 'HANGUL' in unicodedata.name(char, '')
+
+def hangul_to_symbols(text):
+    result = ""
+    for char in text:
+        if char == " ":
+            result += SPACE_SYMBOL
+        elif is_hangul_char(char):
+            decomposed = list(j2hcj(h2j(char)))
+            cho = decomposed[0]
+            jung = decomposed[1]
+            jong = decomposed[2] if len(decomposed) == 3 else ''
+            result += decompose_chosung.get(cho, cho)
+            result += decompose_jungsung.get(jung, jung)
+            result += decompose_jongsung.get(jong, jong)
+        else:
+            result += char
+    return result
+
+# Streamlit UI
+st.set_page_config(page_title="기호 챗봇", layout="centered")
+st.title("🔮 기호 언어 GPT 챗봇")
+
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# 👤 사용자 입력 (기호 언어)
-user_input_symbol = st.text_area("🗣️ 기호 언어 입력", height=100)
+user_input = st.text_input("기호 언어로 메시지를 입력하세요:", key="symbol_input")
 
-def generate_gpt_reply(prompt_text):
+if st.button("보내기") and user_input:
+    # 메시지 저장
+    st.session_state.chat_history.append(("user", user_input))
+
+    # GPT API 호출
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        api_key=openai_api_key,
         messages=[
-            {"role": "system", "content": "친절하고 쉽게 설명해 주세요."},
-            {"role": "user", "content": prompt_text}
+            {"role": "system", "content": "당신은 기호 언어만 사용하는 챗봇입니다. 한글은 절대 사용하지 마세요."},
+            *[{"role": role, "content": msg} for role, msg in st.session_state.chat_history]
         ]
     )
-    return response.choices[0].message["content"]
 
-# ▶️ 버튼 클릭 시 GPT 호출 및 변환
-if st.button("💬 기호로 대화하기") and user_input_symbol and openai_api_key:
-    # 1️⃣ 기호 → 한글
-    user_input_korean = symbols_to_hangul(user_input_symbol)
+    bot_reply = response['choices'][0]['message']['content']
+    st.session_state.chat_history.append(("assistant", bot_reply))
 
-    # 2️⃣ GPT 호출 (한글)
-    gpt_reply_korean = generate_gpt_reply(user_input_korean)
-
-    # 3️⃣ GPT 응답 → 기호 변환
-    gpt_reply_symbol = hangul_to_symbols(gpt_reply_korean)
-
-    # 💾 채팅 기록 저장
-    st.session_state.chat_history.append(("👤", user_input_symbol))
-    st.session_state.chat_history.append(("🤖", gpt_reply_symbol))
-
-# 🪶 채팅 출력
-st.markdown("## 💬 대화 기록")
-for speaker, msg in st.session_state.chat_history:
-    st.markdown(f"**{speaker}**: {msg}")
+# 채팅 출력
+for role, message in st.session_state.chat_history:
+    if role == "user":
+        st.markdown(f"🧑‍💻 **나:** {message}")
+    else:
+        st.markdown(f"🤖 **기호봇:** {message}")
