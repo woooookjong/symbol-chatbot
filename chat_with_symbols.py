@@ -1,32 +1,45 @@
 import streamlit as st
-from jamo import h2j, j2hcj
 import unicodedata
 import openai
+from jamo import h2j, j2hcj
 
-# ✅ 최신 방식: 클라이언트 생성
-client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# 🔐 비밀번호 설정
+PASSWORD = "tnguswhddnr123"
 
-# 기호 매핑 테이블 (초성/중성/종성)
-decompose_chosung = {'ㄱ': 'ᚠ', 'ㄴ': 'ᚢ', 'ㄷ': 'ᚣ', 'ㄹ': 'ᚥ', 'ㅁ': 'ᚦ', 'ㅂ': 'ᚧ', 'ㅅ': 'ᚩ', 'ㅇ': 'ᚫ', 'ㅈ': 'ᚬ', 'ㅊ': 'ᚮ', 'ㅋ': 'ᚯ', 'ㅌ': 'ᚰ', 'ㅍ': 'ᚱ', 'ㅎ': 'ᚲ'}
-decompose_jungsung = {'ㅏ': '𐔀', 'ㅓ': '𐔄', 'ㅗ': '𐔈', 'ㅜ': '𐔍', 'ㅡ': '𐔒', 'ㅣ': '𐔔', 'ㅐ': '𐔁', 'ㅔ': '𐔅'}
-decompose_jongsung = {'': '', 'ㄱ': 'ᚳ', 'ㄴ': 'ᚶ', 'ㄷ': 'ᚹ', 'ㄹ': 'ᚺ', 'ㅁ': 'ᛂ', 'ㅂ': 'ᛃ', 'ㅅ': 'ᛅ', 'ㅇ': 'ᛇ', 'ㅈ': 'ᛈ', 'ㅊ': 'ᛉ', 'ㅋ': 'ᛊ', 'ㅌ': 'ᛋ', 'ㅍ': 'ᛌ', 'ㅎ': 'ᛍ'}
+# ✅ 유저 인증
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-# 역변환
+if not st.session_state.authenticated:
+    password = st.text_input("비밀번호를 입력하세요", type="password")
+    if password == PASSWORD:
+        st.session_state.authenticated = True
+        st.experimental_rerun()
+    else:
+        st.stop()
+
+# ✅ OpenAI API 키
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+# 문자 리스트 정의
+CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ']
+JUNGSUNG_LIST = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ']
+JONGSUNG_LIST = ['', 'ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ']
+
+# 기호 문자 매핑
+decompose_chosung = {'ㄱ': 'ᚠ', 'ㄲ': 'ᚡ', 'ㄴ': 'ᚢ', 'ㄷ': 'ᚣ', 'ㄸ': 'ᚤ','ㄹ': 'ᚥ', 'ㅁ': 'ᚦ', 'ㅂ': 'ᚧ', 'ㅃ': 'ᚨ', 'ㅅ': 'ᚩ','ㅆ': 'ᚪ', 'ㅇ': 'ᚫ', 'ㅈ': 'ᚬ', 'ㅉ': 'ᚭ', 'ㅊ': 'ᚮ','ㅋ': 'ᚯ', 'ㅌ': 'ᚰ', 'ㅍ': 'ᚱ', 'ㅎ': 'ᚲ'}
+decompose_jungsung = {'ㅏ': '𐔀', 'ㅐ': '𐔁', 'ㅑ': '𐔂', 'ㅒ': '𐔃', 'ㅓ': '𐔄','ㅔ': '𐔅', 'ㅕ': '𐔆', 'ㅖ': '𐔇', 'ㅗ': '𐔈', 'ㅘ': '𐔉','ㅙ': '𐔊', 'ㅚ': '𐔋', 'ㅛ': '𐔌', 'ㅜ': '𐔍', 'ㅝ': '𐔎','ㅞ': '𐔏', 'ㅟ': '𐔐', 'ㅠ': '𐔑', 'ㅡ': '𐔒', 'ㅢ': '𐔓', 'ㅣ': '𐔔'}
+decompose_jongsung = {'': '', 'ㄱ': 'ᚳ', 'ㄲ': 'ᚴ', 'ㄳ': 'ᚵ', 'ㄴ': 'ᚶ','ㄵ': 'ᚷ', 'ㄶ': 'ᚸ', 'ㄷ': 'ᚹ', 'ㄹ': 'ᚺ', 'ㄺ': 'ᚻ','ㄻ': 'ᚼ', 'ㄼ': 'ᚽ', 'ㄽ': 'ᚾ', 'ㄾ': 'ᚿ', 'ㄿ': 'ᛀ','ㅀ': 'ᛁ', 'ㅁ': 'ᛂ', 'ㅂ': 'ᛃ', 'ㅄ': 'ᛄ', 'ㅅ': 'ᛅ','ㅆ': 'ᛆ', 'ㅇ': 'ᛇ', 'ㅈ': 'ᛈ', 'ㅊ': 'ᛉ', 'ㅋ': 'ᛊ','ㅌ': 'ᛋ', 'ㅍ': 'ᛌ', 'ㅎ': 'ᛍ'}
+
+special_symbols = {'?': 'ꡞ', '!': '႟', '.': '꘏', ',': '᛬'}
+reverse_special = {v: k for k, v in special_symbols.items()}
 reverse_chosung = {v: k for k, v in decompose_chosung.items()}
 reverse_jungsung = {v: k for k, v in decompose_jungsung.items()}
 reverse_jongsung = {v: k for k, v in decompose_jongsung.items()}
 
-CHOSUNG_LIST = list(decompose_chosung.keys())
-JUNGSUNG_LIST = list(decompose_jungsung.keys())
-JONGSUNG_LIST = list(decompose_jongsung.keys())
-
-SPACE_SYMBOL = '𐤟'
-
-# 한글 여부
 def is_hangul_char(char):
     return 'HANGUL' in unicodedata.name(char, '')
 
-# 자모 조합
 def join_jamos_manual(jamos):
     result = ""
     i = 0
@@ -37,9 +50,11 @@ def join_jamos_manual(jamos):
                 jung = JUNGSUNG_LIST.index(jamos[i+1])
                 jong = 0
                 if i+2 < len(jamos) and jamos[i+2] in JONGSUNG_LIST:
-                    jong = JONGSUNG_LIST.index(jamos[i+2])
-                    i += 1
-                result += chr(0xAC00 + cho * 21 * 28 + jung * 28 + jong)
+                    next_j = jamos[i+3] if i+3 < len(jamos) else ''
+                    if next_j in CHOSUNG_LIST or next_j in reverse_special or next_j == '' or next_j == ' ':
+                        jong = JONGSUNG_LIST.index(jamos[i+2])
+                        i += 1
+                result += chr(0xAC00 + cho * 588 + jung * 28 + jong)
                 i += 2
             else:
                 result += jamos[i]
@@ -49,54 +64,71 @@ def join_jamos_manual(jamos):
             i += 1
     return result
 
-# 🧙 Streamlit 앱 시작
-st.set_page_config(page_title="ᚠ𐔀 기호 챗봇", layout="centered")
-st.title("ᚠ𐔀 기호 언어 챗봇 💬")
+# 챗봇 앱 시작
+st.title("📜 기호 언어 GPT 챗봇")
 
-# 채팅 기록 초기화
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+# 세션 초기화
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-# 입력
-user_input = st.text_input("기호 언어 입력 👇")
+# 기호 언어 입력
+user_input = st.text_input("💬 기호 언어 입력")
 
-# 전처리: 기호 → 한글
-def convert_symbols_to_hangul(symbol_input):
+# 한글 복원
+def symbols_to_korean(symbol_input):
     jamo_result = []
     i = 0
     while i < len(symbol_input):
         ch = symbol_input[i]
         next_ch = symbol_input[i+1] if i+1 < len(symbol_input) else ''
         next_next_ch = symbol_input[i+2] if i+2 < len(symbol_input) else ''
-        if ch == SPACE_SYMBOL:
+        next_3 = symbol_input[i+3] if i+3 < len(symbol_input) else ''
+
+        if ch == ' ':
             jamo_result.append(' ')
             i += 1
-        elif ch in reverse_chosung:
+        elif ch in reverse_special:
+            jamo_result.append(reverse_special[ch])
+            i += 1
+        elif ch in reverse_chosung and ch not in reverse_jongsung:
             if next_ch in reverse_jungsung:
                 cho = reverse_chosung[ch]
                 jung = reverse_jungsung[next_ch]
                 jong = ''
                 if next_next_ch in reverse_jongsung:
-                    jong = reverse_jongsung[next_next_ch]
-                    jamo_result.extend([cho, jung, jong])
-                    i += 3
+                    if next_3 in reverse_chosung or next_3 in reverse_special or next_3 == '' or next_3 == ' ':
+                        jong = reverse_jongsung[next_next_ch]
+                        jamo_result.extend([cho, jung, jong])
+                        i += 3
+                    else:
+                        jamo_result.extend([cho, jung])
+                        i += 2
                 else:
                     jamo_result.extend([cho, jung])
                     i += 2
             else:
                 jamo_result.append(reverse_chosung[ch])
                 i += 1
+        elif ch in reverse_jongsung:
+            next_char = symbol_input[i+1] if i+1 < len(symbol_input) else ''
+            if next_char in reverse_chosung or next_char in reverse_special or next_char == '' or next_char == ' ':
+                jamo_result.append(reverse_jongsung[ch])
+            else:
+                jamo_result.append(reverse_jongsung[ch])
+            i += 1
         else:
             jamo_result.append(ch)
             i += 1
     return join_jamos_manual(jamo_result)
 
-# 후처리: 한글 → 기호
-def convert_hangul_to_symbols(text):
+# GPT 응답 생성 및 기호로 다시 변환
+def korean_to_symbols(text):
     result = ""
     for char in text:
-        if char == ' ':
-            result += SPACE_SYMBOL
+        if char == " ":
+            result += " "
+        elif char in special_symbols:
+            result += special_symbols[char]
         elif is_hangul_char(char):
             decomposed = list(j2hcj(h2j(char)))
             cho = decomposed[0]
@@ -109,27 +141,23 @@ def convert_hangul_to_symbols(text):
             result += char
     return result
 
-# 메시지 전송
+# 채팅 처리
 if user_input:
-    # 1️⃣ 기호 → 한글
-    user_hangul = convert_symbols_to_hangul(user_input)
-    st.session_state.chat_history.append(("🧑", user_input))
+    korean_input = symbols_to_korean(user_input)
 
-    # 2️⃣ GPT 호출
-    response = client.chat.completions.create(
+    st.session_state.history.append(("🙋‍♂️", user_input))
+
+    # GPT 응답
+    completion = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "모든 대답은 기호 언어로 해줘."},
-            {"role": "user", "content": user_hangul}
-        ]
+        messages=[{"role": "user", "content": korean_input}],
+        temperature=0.7
     )
-    assistant_reply = response.choices[0].message.content.strip()
+    reply_korean = completion.choices[0].message["content"]
+    reply_symbol = korean_to_symbols(reply_korean)
 
-    # 3️⃣ 한글 → 기호
-    assistant_symbols = convert_hangul_to_symbols(assistant_reply)
-    st.session_state.chat_history.append(("🤖", assistant_symbols))
+    st.session_state.history.append(("🤖", reply_symbol))
 
-# 채팅 출력
-st.markdown("---")
-for role, msg in st.session_state.chat_history:
-    st.markdown(f"**{role}**: {msg}")
+# 채팅 로그 출력
+for speaker, message in st.session_state.history:
+    st.markdown(f"**{speaker}**: {message}")
