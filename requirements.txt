@@ -1,3 +1,3 @@
 streamlit
-openai
 jamo
+openai>=1.0.0
