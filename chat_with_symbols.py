@@ -4,7 +4,7 @@ from jamo import h2j, j2hcj
 from openai import OpenAI
 
 # 🔐 비밀번호 설정
-PASSWORD = "tnguswhddnr123"
+PASSWORD = st.secrets["APP_PASSWORD"]
 
 # ✅ 인증
 if "authenticated" not in st.session_state:
