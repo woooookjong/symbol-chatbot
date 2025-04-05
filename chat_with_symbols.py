@@ -4,7 +4,7 @@ from jamo import h2j, j2hcj
 from openai import OpenAI, RateLimitError, AuthenticationError
 
 # ✅ 시크릿에서 비밀번호 & API 키 가져오기
-PASSWORD = st.secrets["CHATBOT_PASSWORD"]
+PASSWORD = st.secrets["APP_PASSWORD"]
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # 문자 구성 리스트
