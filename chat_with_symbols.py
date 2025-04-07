@@ -2,12 +2,10 @@ import streamlit as st
 import unicodedata
 from jamo import h2j, j2hcj
 from openai import OpenAI
-from openai.types import RateLimitError
 
-# 🔐 비밀번호 설정
+# 🔐 비밀번호 인증
 PASSWORD = st.secrets["APP_PASSWORD"]
 
-# ✅ 인증
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -19,18 +17,18 @@ if not st.session_state.authenticated:
     else:
         st.stop()
 
-# ✅ OpenAI 클라이언트
+# ✅ OpenAI 클라이언트 객체 생성
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# 문자 리스트
+# 문자 구성 리스트
 CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ']
 JUNGSUNG_LIST = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ']
 JONGSUNG_LIST = ['', 'ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ']
 
+# 기호 매핑
 decompose_chosung = {'ㄱ': 'ᚠ', 'ㄲ': 'ᚡ', 'ㄴ': 'ᚢ', 'ㄷ': 'ᚣ', 'ㄸ': 'ᚤ','ㄹ': 'ᚥ', 'ㅁ': 'ᚦ', 'ㅂ': 'ᚧ', 'ㅃ': 'ᚨ', 'ㅅ': 'ᚩ','ㅆ': 'ᚪ', 'ㅇ': 'ᚫ', 'ㅈ': 'ᚬ', 'ㅉ': 'ᚭ', 'ㅊ': 'ᚮ','ㅋ': 'ᚯ', 'ㅌ': 'ᚰ', 'ㅍ': 'ᚱ', 'ㅎ': 'ᚲ'}
 decompose_jungsung = {'ㅏ': '𐔀', 'ㅐ': '𐔁', 'ㅑ': '𐔂', 'ㅒ': '𐔃', 'ㅓ': '𐔄','ㅔ': '𐔅', 'ㅕ': '𐔆', 'ㅖ': '𐔇', 'ㅗ': '𐔈', 'ㅘ': '𐔉','ㅙ': '𐔊', 'ㅚ': '𐔋', 'ㅛ': '𐔌', 'ㅜ': '𐔍', 'ㅝ': '𐔎','ㅞ': '𐔏', 'ㅟ': '𐔐', 'ㅠ': '𐔑', 'ㅡ': '𐔒', 'ㅢ': '𐔓', 'ㅣ': '𐔔'}
 decompose_jongsung = {'': '', 'ㄱ': 'ᚳ', 'ㄲ': 'ᚴ', 'ㄳ': 'ᚵ', 'ㄴ': 'ᚶ','ㄵ': 'ᚷ', 'ㄶ': 'ᚸ', 'ㄷ': 'ᚹ', 'ㄹ': 'ᚺ', 'ㄺ': 'ᚻ','ㄻ': 'ᚼ', 'ㄼ': 'ᚽ', 'ㄽ': 'ᚾ', 'ㄾ': 'ᚿ', 'ㄿ': 'ᛀ','ㅀ': 'ᛁ', 'ㅁ': 'ᛂ', 'ㅂ': 'ᛃ', 'ㅄ': 'ᛄ', 'ㅅ': 'ᛅ','ㅆ': 'ᛆ', 'ㅇ': 'ᛇ', 'ㅈ': 'ᛈ', 'ㅊ': 'ᛉ', 'ㅋ': 'ᛊ','ㅌ': 'ᛋ', 'ㅍ': 'ᛌ', 'ㅎ': 'ᛍ'}
-
 special_symbols = {'?': 'ꡞ', '!': '႟', '.': '꘏', ',': '᛬'}
 reverse_special = {v: k for k, v in special_symbols.items()}
 reverse_chosung = {v: k for k, v in decompose_chosung.items()}
@@ -125,7 +123,7 @@ def korean_to_symbols(text):
             result += char
     return result
 
-# 💬 챗봇 UI
+# 챗봇 UI
 st.title("📜 고대 문자 GPT 챗봇")
 
 if "history" not in st.session_state:
@@ -147,11 +145,12 @@ if user_input:
         reply_symbol = korean_to_symbols(reply_korean)
         st.session_state.history.append(("🤖", reply_symbol))
 
-    except RateLimitError:
-        st.warning("⚠️ 너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.")
     except Exception as e:
-        st.error(f"❌ 오류 발생: {str(e)}")
+        if "insufficient_quota" in str(e).lower():
+            st.warning("⚠️ 현재 API 사용량이 초과되었습니다. 요금제나 사용량을 확인해주세요.")
+        else:
+            st.error(f"❌ 오류 발생: {str(e)}")
 
-# 📝 대화 기록 출력
+# 채팅 히스토리 출력
 for speaker, message in st.session_state.history:
     st.markdown(f"**{speaker}**: {message}")
