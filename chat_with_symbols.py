@@ -1,13 +1,11 @@
 import streamlit as st
 import unicodedata
 from jamo import h2j, j2hcj
-from openai import OpenAI
-import openai
+from openai import OpenAI, RateLimitError, AuthenticationError, APIConnectionError, Timeout
 
-# 🔐 비밀번호 설정 (Secrets에서 불러옴)
+# 🔐 비밀번호 인증
 PASSWORD = st.secrets["APP_PASSWORD"]
 
-# ✅ 인증
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -22,12 +20,11 @@ if not st.session_state.authenticated:
 # ✅ OpenAI 클라이언트 객체 생성
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# 문자 구성 리스트
+# 문자 매핑 정의
 CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ']
 JUNGSUNG_LIST = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ']
 JONGSUNG_LIST = ['', 'ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ']
 
-# 기호 매핑
 decompose_chosung = {'ㄱ': 'ᚠ', 'ㄲ': 'ᚡ', 'ㄴ': 'ᚢ', 'ㄷ': 'ᚣ', 'ㄸ': 'ᚤ','ㄹ': 'ᚥ', 'ㅁ': 'ᚦ', 'ㅂ': 'ᚧ', 'ㅃ': 'ᚨ', 'ㅅ': 'ᚩ','ㅆ': 'ᚪ', 'ㅇ': 'ᚫ', 'ㅈ': 'ᚬ', 'ㅉ': 'ᚭ', 'ㅊ': 'ᚮ','ㅋ': 'ᚯ', 'ㅌ': 'ᚰ', 'ㅍ': 'ᚱ', 'ㅎ': 'ᚲ'}
 decompose_jungsung = {'ㅏ': '𐔀', 'ㅐ': '𐔁', 'ㅑ': '𐔂', 'ㅒ': '𐔃', 'ㅓ': '𐔄','ㅔ': '𐔅', 'ㅕ': '𐔆', 'ㅖ': '𐔇', 'ㅗ': '𐔈', 'ㅘ': '𐔉','ㅙ': '𐔊', 'ㅚ': '𐔋', 'ㅛ': '𐔌', 'ㅜ': '𐔍', 'ㅝ': '𐔎','ㅞ': '𐔏', 'ㅟ': '𐔐', 'ㅠ': '𐔑', 'ㅡ': '𐔒', 'ㅢ': '𐔓', 'ㅣ': '𐔔'}
 decompose_jongsung = {'': '', 'ㄱ': 'ᚳ', 'ㄲ': 'ᚴ', 'ㄳ': 'ᚵ', 'ㄴ': 'ᚶ','ㄵ': 'ᚷ', 'ㄶ': 'ᚸ', 'ㄷ': 'ᚹ', 'ㄹ': 'ᚺ', 'ㄺ': 'ᚻ','ㄻ': 'ᚼ', 'ㄼ': 'ᚽ', 'ㄽ': 'ᚾ', 'ㄾ': 'ᚿ', 'ㄿ': 'ᛀ','ㅀ': 'ᛁ', 'ㅁ': 'ᛂ', 'ㅂ': 'ᛃ', 'ㅄ': 'ᛄ', 'ㅅ': 'ᛅ','ㅆ': 'ᛆ', 'ㅇ': 'ᛇ', 'ㅈ': 'ᛈ', 'ㅊ': 'ᛉ', 'ㅋ': 'ᛊ','ㅌ': 'ᛋ', 'ㅍ': 'ᛌ', 'ㅎ': 'ᛍ'}
@@ -126,20 +123,18 @@ def korean_to_symbols(text):
             result += char
     return result
 
-# 대화 이력 초기화
+# 세션 초기화
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# 앱 제목
-st.title("🧶 고대 문자 GPT 챗봇")
+st.title("🗿 기호 언어 GPT 챗봇")
+
 user_input = st.text_input("💬 기호 언어 입력")
 
-# 대화 처리
 if user_input:
-    korean_input = symbols_to_korean(user_input)
     st.session_state.history.append(("🙋‍♂️", user_input))
-
     try:
+        korean_input = symbols_to_korean(user_input)
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": korean_input}],
@@ -148,9 +143,14 @@ if user_input:
         reply_korean = response.choices[0].message.content
         reply_symbol = korean_to_symbols(reply_korean)
         st.session_state.history.append(("🤖", reply_symbol))
+    except (RateLimitError, Timeout):
+        st.session_state.history.append(("🤖", "⚠️ 서버가 혼잡합니다. 잠시 후 다시 시도해주세요."))
+    except AuthenticationError:
+        st.session_state.history.append(("🤖", "🔑 인증 오류: API 키를 확인해주세요."))
+    except APIConnectionError:
+        st.session_state.history.append(("🤖", "🌐 연결 오류: OpenAI 서버에 접근할 수 없습니다."))
     except Exception as e:
-        st.session_state.history.append(("🤖", "⚠️ GPT 응답에 문제가 발생했어요. 나중에 다시 시도해주세요!"))
+        st.session_state.history.append(("🤖", f"❌ 알 수 없는 오류 발생: {str(e)}"))
 
-# 대화 출력
 for speaker, message in st.session_state.history:
     st.markdown(f"**{speaker}**: {message}")
