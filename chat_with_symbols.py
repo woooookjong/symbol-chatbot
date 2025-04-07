@@ -2,7 +2,7 @@ import streamlit as st
 import unicodedata
 from jamo import h2j, j2hcj
 from openai import OpenAI
-from openai.error import RateLimitError, Timeout
+from openai._exceptions import RateLimitError, Timeout
 
 # 🔐 비밀번호 인증
 PASSWORD = st.secrets["APP_PASSWORD"]
