@@ -1,42 +1,21 @@
 import streamlit as st
 import unicodedata
 from jamo import h2j, j2hcj
-from openai import OpenAI, AuthenticationError, RateLimitError
-import time
+from openai import OpenAI, OpenAIError
 
-# 🔐 비밀번호 인증
+# ✅ 시크릿에서 비밀번호와 API 키 가져오기
 PASSWORD = st.secrets["APP_PASSWORD"]
-
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if not st.session_state.authenticated:
-    password = st.text_input("비밀번호를 입력하세요", type="password")
-    if password == PASSWORD:
-        st.session_state.authenticated = True
-        st.rerun()
-    else:
-        st.stop()
-
-# ✅ OpenAI 클라이언트
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# 문자 리스트
+# 문자 구성 리스트
 CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ']
 JUNGSUNG_LIST = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ']
 JONGSUNG_LIST = ['', 'ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ']
 
 # 기호 매핑
-decompose_chosung = {'ㄱ': 'ᚠ', 'ㄲ': 'ᚡ', 'ㄴ': 'ᚢ', 'ㄷ': 'ᚣ', 'ㄸ': 'ᚤ', 'ㄹ': 'ᚥ', 'ㅁ': 'ᚦ', 'ㅂ': 'ᚧ',
-                     'ㅃ': 'ᚨ', 'ㅅ': 'ᚩ', 'ㅆ': 'ᚪ', 'ㅇ': 'ᚫ', 'ㅈ': 'ᚬ', 'ㅉ': 'ᚭ', 'ㅊ': 'ᚮ',
-                     'ㅋ': 'ᚯ', 'ㅌ': 'ᚰ', 'ㅍ': 'ᚱ', 'ㅎ': 'ᚲ'}
-decompose_jungsung = {'ㅏ': '𐔀', 'ㅐ': '𐔁', 'ㅑ': '𐔂', 'ㅒ': '𐔃', 'ㅓ': '𐔄', 'ㅔ': '𐔅', 'ㅕ': '𐔆',
-                      'ㅖ': '𐔇', 'ㅗ': '𐔈', 'ㅘ': '𐔉', 'ㅙ': '𐔊', 'ㅚ': '𐔋', 'ㅛ': '𐔌', 'ㅜ': '𐔍',
-                      'ㅝ': '𐔎', 'ㅞ': '𐔏', 'ㅟ': '𐔐', 'ㅠ': '𐔑', 'ㅡ': '𐔒', 'ㅢ': '𐔓', 'ㅣ': '𐔔'}
-decompose_jongsung = {'': '', 'ㄱ': 'ᚳ', 'ㄲ': 'ᚴ', 'ㄳ': 'ᚵ', 'ㄴ': 'ᚶ', 'ㄵ': 'ᚷ', 'ㄶ': 'ᚸ',
-                      'ㄷ': 'ᚹ', 'ㄹ': 'ᚺ', 'ㄺ': 'ᚻ', 'ㄻ': 'ᚼ', 'ㄼ': 'ᚽ', 'ㄽ': 'ᚾ', 'ㄾ': 'ᚿ',
-                      'ㄿ': 'ᛀ', 'ㅀ': 'ᛁ', 'ㅁ': 'ᛂ', 'ㅂ': 'ᛃ', 'ㅄ': 'ᛄ', 'ㅅ': 'ᛅ', 'ㅆ': 'ᛆ',
-                      'ㅇ': 'ᛇ', 'ㅈ': 'ᛈ', 'ㅊ': 'ᛉ', 'ㅋ': 'ᛊ', 'ㅌ': 'ᛋ', 'ㅍ': 'ᛌ', 'ㅎ': 'ᛍ'}
+decompose_chosung = {'ㄱ': 'ᚠ', 'ㄲ': 'ᚡ', 'ㄴ': 'ᚢ', 'ㄷ': 'ᚣ', 'ㄸ': 'ᚤ','ㄹ': 'ᚥ', 'ㅁ': 'ᚦ', 'ㅂ': 'ᚧ', 'ㅃ': 'ᚨ', 'ㅅ': 'ᚩ','ㅆ': 'ᚪ', 'ㅇ': 'ᚫ', 'ㅈ': 'ᚬ', 'ㅉ': 'ᚭ', 'ㅊ': 'ᚮ','ㅋ': 'ᚯ', 'ㅌ': 'ᚰ', 'ㅍ': 'ᚱ', 'ㅎ': 'ᚲ'}
+decompose_jungsung = {'ㅏ': '𐔀', 'ㅐ': '𐔁', 'ㅑ': '𐔂', 'ㅒ': '𐔃', 'ㅓ': '𐔄','ㅔ': '𐔅', 'ㅕ': '𐔆', 'ㅖ': '𐔇', 'ㅗ': '𐔈', 'ㅘ': '𐔉','ㅙ': '𐔊', 'ㅚ': '𐔋', 'ㅛ': '𐔌', 'ㅜ': '𐔍', 'ㅝ': '𐔎','ㅞ': '𐔏', 'ㅟ': '𐔐', 'ㅠ': '𐔑', 'ㅡ': '𐔒', 'ㅢ': '𐔓', 'ㅣ': '𐔔'}
+decompose_jongsung = {'': '', 'ㄱ': 'ᚳ', 'ㄲ': 'ᚴ', 'ㄳ': 'ᚵ', 'ㄴ': 'ᚶ','ㄵ': 'ᚷ', 'ㄶ': 'ᚸ', 'ㄷ': 'ᚹ', 'ㄹ': 'ᚺ', 'ㄺ': 'ᚻ','ㄻ': 'ᚼ', 'ㄼ': 'ᚽ', 'ㄽ': 'ᚾ', 'ㄾ': 'ᚿ', 'ㄿ': 'ᛀ','ㅀ': 'ᛁ', 'ㅁ': 'ᛂ', 'ㅂ': 'ᛃ', 'ㅄ': 'ᛄ', 'ㅅ': 'ᛅ','ㅆ': 'ᛆ', 'ㅇ': 'ᛇ', 'ㅈ': 'ᛈ', 'ㅊ': 'ᛉ', 'ㅋ': 'ᛊ','ㅌ': 'ᛋ', 'ㅍ': 'ᛌ', 'ㅎ': 'ᛍ'}
 
 special_symbols = {'?': 'ꡞ', '!': '႟', '.': '꘏', ',': '᛬'}
 reverse_special = {v: k for k, v in special_symbols.items()}
@@ -44,6 +23,18 @@ reverse_chosung = {v: k for k, v in decompose_chosung.items()}
 reverse_jungsung = {v: k for k, v in decompose_jungsung.items()}
 reverse_jongsung = {v: k for k, v in decompose_jongsung.items()}
 
+# 🔐 인증
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if not st.session_state.authenticated:
+    pw = st.text_input("비밀번호를 입력하세요", type="password")
+    if pw == PASSWORD:
+        st.session_state.authenticated = True
+        st.experimental_rerun()
+    else:
+        st.stop()
+
+# 🔤 유틸 함수
 def is_hangul_char(char):
     return 'HANGUL' in unicodedata.name(char, '')
 
@@ -58,7 +49,7 @@ def join_jamos_manual(jamos):
                 jong = 0
                 if i+2 < len(jamos) and jamos[i+2] in JONGSUNG_LIST:
                     next_j = jamos[i+3] if i+3 < len(jamos) else ''
-                    if next_j in CHOSUNG_LIST or next_j in reverse_special or next_j in ('', ' '):
+                    if next_j in CHOSUNG_LIST or next_j in reverse_special or next_j == '' or next_j == ' ':
                         jong = JONGSUNG_LIST.index(jamos[i+2])
                         i += 1
                 result += chr(0xAC00 + cho * 588 + jung * 28 + jong)
@@ -71,6 +62,7 @@ def join_jamos_manual(jamos):
             i += 1
     return result
 
+# 변환: 기호 → 한글
 def symbols_to_korean(symbol_input):
     jamo_result = []
     i = 0
@@ -92,7 +84,7 @@ def symbols_to_korean(symbol_input):
                 jung = reverse_jungsung[next_ch]
                 jong = ''
                 if next_next_ch in reverse_jongsung:
-                    if next_3 in reverse_chosung or next_3 in reverse_special or next_3 in ('', ' '):
+                    if next_3 in reverse_chosung or next_3 in reverse_special or next_3 == '' or next_3 == ' ':
                         jong = reverse_jongsung[next_next_ch]
                         jamo_result.extend([cho, jung, jong])
                         i += 3
@@ -113,6 +105,7 @@ def symbols_to_korean(symbol_input):
             i += 1
     return join_jamos_manual(jamo_result)
 
+# 변환: 한글 → 기호
 def korean_to_symbols(text):
     result = ""
     for char in text:
@@ -132,46 +125,31 @@ def korean_to_symbols(text):
             result += char
     return result
 
-# 세션 초기화
+# 🔁 세션 초기화
 if "history" not in st.session_state:
     st.session_state.history = []
 
-st.title("📜 고대 문자 GPT 챗봇")
-
-# 입력창
+# 🧵 앱 UI
+st.title("🧶 고대 문자 GPT 챗봇")
 user_input = st.text_input("💬 기호 언어 입력")
 
 if user_input:
-    st.session_state.history.append(("🙋‍♂️", user_input))
     korean_input = symbols_to_korean(user_input)
+    st.session_state.history.append(("🙋‍♂️", user_input))
 
-    # GPT 요청 (재시도 포함)
-    retry_count = 0
-    max_retries = 3
-    reply_korean = ""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": korean_input}],
+            temperature=0.7
+        )
+        reply_korean = response.choices[0].message.content
+        reply_symbol = korean_to_symbols(reply_korean)
+    except OpenAIError as e:
+        reply_symbol = "⚠️ GPT 응답에 문제가 발생했어요. 나중에 다시 시도해주세요!"
 
-    while retry_count < max_retries:
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": korean_input}],
-                temperature=0.7
-            )
-            reply_korean = response.choices[0].message.content
-            break
-        except RateLimitError:
-            time.sleep(2 ** retry_count)
-            retry_count += 1
-        except AuthenticationError:
-            reply_korean = "❌ 인증 오류: OpenAI 키를 확인해주세요."
-            break
-        except Exception as e:
-            reply_korean = f"⚠️ 오류 발생: {str(e)}"
-            break
-
-    reply_symbol = korean_to_symbols(reply_korean)
     st.session_state.history.append(("🤖", reply_symbol))
 
-# 출력
+# 📜 대화 히스토리 출력
 for speaker, message in st.session_state.history:
     st.markdown(f"**{speaker}**: {message}")
