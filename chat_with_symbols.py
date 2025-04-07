@@ -124,7 +124,8 @@ def korean_to_symbols(text):
     return result
 
 # 챗봇 UI
-st.title("📜 고대 문자 GPT 챗봇")
+st.set_page_config(page_title="아르카봇 - 기호 언어 GPT 챗봇")
+st.title("🤖 아르카봇 : 고대 문자 GPT 챗봇")
 
 if "history" not in st.session_state:
     st.session_state.history = []
