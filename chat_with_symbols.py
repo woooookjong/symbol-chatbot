@@ -1,10 +1,25 @@
 import streamlit as st
 import unicodedata
 from jamo import h2j, j2hcj
-from openai import OpenAI, OpenAIError
+from openai import OpenAI
+import openai
 
-# ✅ 시크릿에서 비밀번호와 API 키 가져오기
+# 🔐 비밀번호 설정 (Secrets에서 불러옴)
 PASSWORD = st.secrets["APP_PASSWORD"]
+
+# ✅ 인증
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    pw = st.text_input("비밀번호를 입력하세요", type="password")
+    if pw == PASSWORD:
+        st.session_state.authenticated = True
+        st.rerun()
+    else:
+        st.stop()
+
+# ✅ OpenAI 클라이언트 객체 생성
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # 문자 구성 리스트
@@ -23,18 +38,6 @@ reverse_chosung = {v: k for k, v in decompose_chosung.items()}
 reverse_jungsung = {v: k for k, v in decompose_jungsung.items()}
 reverse_jongsung = {v: k for k, v in decompose_jongsung.items()}
 
-# 🔐 인증
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if not st.session_state.authenticated:
-    pw = st.text_input("비밀번호를 입력하세요", type="password")
-    if pw == PASSWORD:
-        st.session_state.authenticated = True
-        st.rerun()
-    else:
-        st.stop()
-
-# 🔤 유틸 함수
 def is_hangul_char(char):
     return 'HANGUL' in unicodedata.name(char, '')
 
@@ -62,7 +65,6 @@ def join_jamos_manual(jamos):
             i += 1
     return result
 
-# 변환: 기호 → 한글
 def symbols_to_korean(symbol_input):
     jamo_result = []
     i = 0
@@ -105,7 +107,6 @@ def symbols_to_korean(symbol_input):
             i += 1
     return join_jamos_manual(jamo_result)
 
-# 변환: 한글 → 기호
 def korean_to_symbols(text):
     result = ""
     for char in text:
@@ -125,14 +126,15 @@ def korean_to_symbols(text):
             result += char
     return result
 
-# 🔁 세션 초기화
+# 대화 이력 초기화
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# 🧵 앱 UI
+# 앱 제목
 st.title("🧶 고대 문자 GPT 챗봇")
 user_input = st.text_input("💬 기호 언어 입력")
 
+# 대화 처리
 if user_input:
     korean_input = symbols_to_korean(user_input)
     st.session_state.history.append(("🙋‍♂️", user_input))
@@ -145,11 +147,10 @@ if user_input:
         )
         reply_korean = response.choices[0].message.content
         reply_symbol = korean_to_symbols(reply_korean)
-    except OpenAIError as e:
-        reply_symbol = "⚠️ GPT 응답에 문제가 발생했어요. 나중에 다시 시도해주세요!"
+        st.session_state.history.append(("🤖", reply_symbol))
+    except Exception as e:
+        st.session_state.history.append(("🤖", "⚠️ GPT 응답에 문제가 발생했어요. 나중에 다시 시도해주세요!"))
 
-    st.session_state.history.append(("🤖", reply_symbol))
-
-# 📜 대화 히스토리 출력
+# 대화 출력
 for speaker, message in st.session_state.history:
     st.markdown(f"**{speaker}**: {message}")
